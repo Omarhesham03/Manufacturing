@@ -5,10 +5,10 @@ import simpy
 
 # defining the precessing times for multiple operations 
 processingTime = {
-    'inspecting': 6,
     'loading': 5,
     'machining': 10,
     'assembling': 8,
+    'inspecting': 6,
     'packaging': 4
 }
 
@@ -18,10 +18,10 @@ breakdown = 0.3
 
 # getting the number of workers in each operation 
 NWorkers = {
-    'inspecting': 2,
     'loading': 2,
     'machining': 3,
     'assembling': 4,
+    'inspecting': 2,
     'packaging': 3
 }
 
@@ -44,11 +44,11 @@ class MLine:
         # making empty array for the data
         self.data = []
 
-    def process_part(self, part, product_type):
+    def process(self, part, type):
         stages = ['loading', 'machining', 'assembling', 'inspecting', 'packaging']
         for stage in stages:
             # calculating the processing time 
-            processing_time = processingTime[stage] * (1 if product_type == 1 else 1.2)
+            processing_time = processingTime[stage] * (1 if type == 1 else 1.2)
             with self.stages[stage].request() as request:
                 # defining the start time 
                 start = self.env.now
@@ -58,7 +58,7 @@ class MLine:
                     yield self.env.timeout(processing_time)
                     # checking the breakdown randomly
                     if random.random() < breakdown:
-                        yield self.env.process(self.repair_machine(stage))
+                        yield self.env.process(self.repair(stage))
                     # defining the end time 
                     end  = self.env.now
                     # storing the saved data
@@ -68,13 +68,13 @@ class MLine:
                         'Start Time': start,
                         'Finish Time': end ,
                         'Duration': end  - start,
-                        'Product Type': product_type
+                        'Product Type': type
                     })
                 except simpy.Interrupt:
                     # handling the inturrupt
-                    yield self.env.process(self.repair_machine(stage))
+                    yield self.env.process(self.repair(stage))
 
-    def repair_machine(self, stage):
+    def repair(self, stage):
         with self.repair_team.request() as repair:
             # defining the start time 
             start_repair = self.env.now
@@ -84,19 +84,18 @@ class MLine:
             yield self.env.timeout(maintainance)
 
 # starting the manufacturing using the parameters of the id and the product type
-def part_manufacturer(env, line, part_id, product_type):
-    yield env.process(line.process_part(part_id, product_type))
+def manufacturer(env, line, part_id, type):
+    yield env.process(line.process(part_id, type))
 
 def setup(env, num_parts_per_type):
     # creating instance of the class
     line = MLine(env)
-
     # looping for each product type
-    for product_type in range(1, Nproducts + 1):
+    for type in range(1, Nproducts + 1):
         # starting the process for the number of the parts
         for i in range(num_parts_per_type):
             # making the process for each part
-            env.process(part_manufacturer(env, line, f"Part_{i + 1}", product_type))
+            env.process(manufacturer(env, line, f"Part_{i + 1}", type))
     
     # simulating for the total time 
     yield env.timeout(simulationTime)
